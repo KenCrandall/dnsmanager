@@ -1,0 +1,40 @@
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# Go
+bin/
+dist/
+coverage.out
+*.coverprofile
+
+# Node/Svelte
+node_modules/
+.npm/
+.pnpm-store/
+.svelte-kit/
+build/
+
+# SQLite and local runtime state
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Docker/runtime artifacts
+tmp/
+.cache/
+
+# IDEs
+.idea/
+.vscode/

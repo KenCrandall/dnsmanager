@@ -1,0 +1,112 @@
+# dnsmanager Living Plan
+
+## Summary
+
+`dnsmanager` will be a Docker Compose-based control plane for `dnsmasq` with:
+- A `dnsmanager` application container for API, web UI, metrics, and orchestration.
+- A companion `dnsmasq` container that reads configuration and related content from shared volumes.
+- Two operator surfaces: a web UI and a Go CLI built with `spf13/cobra`.
+
+The web UI will cover dashboarding, staged configuration management, DNS/DHCP/TFTP/PXE editing, DHCP lease management, and log viewing. The CLI will provide remote task-oriented administration and CRUD access over the same backend API.
+
+## Success Criteria
+
+- Operators can manage `dnsmasq` safely through staged changes rather than live file editing.
+- The app owns managed config generation while preserving manual/legacy snippets cleanly.
+- The companion `dnsmasq` container can consume config from shared volumes without manual intervention.
+- The dashboard provides Pi-hole-inspired operational visibility with short-retention analytics.
+- The CLI and web UI share the same backend semantics for validation, apply, audit, and visibility.
+
+## Current Defaults
+
+### Deployment model
+- Docker Compose with a `dnsmanager` app container and a companion `dnsmasq` container.
+- Shared volumes:
+  - Config volume for rendered dnsmasq config tree.
+  - Data volume for SQLite, backups, staged revisions, and import metadata.
+  - Content volume for TFTP/PXE files and future asset lifecycle management.
+- `dnsmanager` is the writer for managed outputs.
+- `dnsmasq` is the reader of published config and content.
+
+### Planned stack
+- Backend: Go
+- Frontend: Svelte SPA
+- CLI: Go with `spf13/cobra`
+- Persistence: SQLite
+- Streaming: SSE and/or WebSockets for live events and logs
+
+### Config ownership
+- Hybrid model with `managed/`, `manual/`, and `generated/` areas.
+- Conservative first-run import with backups before any rewrite.
+- Staged apply flow with validation, diff preview, atomic publish, and controlled reload/restart.
+
+### Product defaults
+- Dashboard inspired by Pi-hole graph layouts and operational summaries.
+- DNS editor support for `A`, `AAAA`, `CNAME`, `PTR`, `TXT`, `SRV`, and host overrides.
+- PXE v1 includes boot directives, boot entry management, and simple iPXE file creation.
+- Full PXE/TFTP boot-asset lifecycle management is a later milestone and should not be blocked by v1 schema choices.
+- CLI is API-backed only in v1 and authenticates with API tokens.
+- Metrics retention target is 24 hours in v1.
+
+## Milestones
+
+| Milestone | Status | Notes |
+| --- | --- | --- |
+| 1. Repository bootstrap | done | Git repo initialized, README added, living plan established, minimal `.gitignore` added. |
+| 2. Foundation | planned | Compose scaffold, shared volumes, backend shell, Svelte shell, SQLite schema, auth/token model, base CLI client. |
+| 3. Controlled config lifecycle | planned | Import wizard, backups, managed/manual/generated tree, validation, diff, apply, rollback, raw snippet editing. |
+| 4. Managed editors and APIs | planned | DNS, DHCP, TFTP, PXE/iPXE object model, validation, rendering, REST endpoints. |
+| 5. CLI v1 | planned | Cobra command tree, token config, task commands, CRUD commands, output formatting. |
+| 6. Operations views | planned | Lease manager, live logs, apply status, drift warnings. |
+| 7. Dashboard and analytics | planned | Query-log ingestion, 24h rollups, Pi-hole-style graphs, CLI dashboard summary. |
+| 8. Future PXE/TFTP expansion | planned | Full boot-asset lifecycle management, upload, versioning, organization, validation, reference tracking. |
+
+## Current Implementation Focus
+
+The next implementation slice should establish the technical foundation without overcommitting the final application shape:
+- Add Docker Compose scaffolding for `dnsmanager` and companion `dnsmasq` services.
+- Define shared volumes and expected mount boundaries for config, data, and PXE/TFTP content.
+- Initialize the Go application layout for backend and CLI without locking down all package details yet.
+- Establish a minimal Svelte frontend shell suitable for later dashboard and editor work.
+- Introduce the first version of the SQLite schema and configuration model.
+
+## Acceptance Criteria For Next Slice
+
+- The repository contains an initial Compose scaffold describing both containers and their shared volumes.
+- The Go application can start as a minimal service with health/status endpoints.
+- The CLI has an initial Cobra entrypoint and can reach the backend.
+- The frontend shell is served by the backend or prepared for embedding in that flow.
+- The living plan is updated to reflect the implemented foundation and any architecture refinements.
+
+## Open Questions
+
+- Which Docker image strategy should be used first for the companion `dnsmasq` container: custom image or a well-known upstream base?
+- Which live-update mechanism should be preferred first: SSE everywhere, or WebSockets only where needed?
+- What initial token and local-auth bootstrap flow should be used for the first operator account?
+- Which config diff representation will be most useful across both UI and CLI?
+
+## Deferred Scope
+
+- Full PXE/TFTP boot-asset lifecycle management.
+- SSO/OIDC auth providers.
+- Multi-host or centrally managed remote `dnsmasq` fleets.
+- Long-term analytics retention beyond the initial 24-hour target.
+- Direct host-management mode in the CLI.
+
+## Decision Log
+
+| Date | Decision |
+| --- | --- |
+| 2026-04-01 | Use Docker Compose with separate `dnsmanager` and companion `dnsmasq` containers. |
+| 2026-04-01 | Use a shared-volume model where `dnsmanager` writes managed config and `dnsmasq` reads it. |
+| 2026-04-01 | Use Go for the backend and CLI, and Svelte for the web UI. |
+| 2026-04-01 | Keep the initial repository slice documentation-first. |
+| 2026-04-01 | Treat `docs/plan.md` as the canonical living roadmap. |
+
+## Test Checklist
+
+- [x] The repository bootstrap docs reflect the agreed architecture and roadmap.
+- [x] The living plan records milestones, current defaults, open questions, and the next slice.
+- [ ] Foundation scaffold exists and can be executed locally.
+- [ ] Companion container/shared-volume integration is verified.
+- [ ] API, CLI, and frontend foundation pieces are connected.
