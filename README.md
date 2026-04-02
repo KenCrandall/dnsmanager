@@ -47,13 +47,14 @@ Changes will follow a staged apply pipeline:
 5. Publish to the shared volume atomically.
 6. Trigger a controlled reload/restart of the companion `dnsmasq` container.
 
-## Foundation slice
+## Controlled config lifecycle slice
 
-The repository now includes a verified foundation scaffold:
+The repository now includes a verified scaffold plus the first controlled config lifecycle implementation:
 
 - `compose.yaml` for the `dnsmanager` app container and companion `dnsmasq` container.
 - A Go backend with `healthz`, runtime status, shared-volume bootstrapping, and static UI serving.
-- A Cobra-based CLI with an initial `status` command against the backend API.
+- SQLite-backed config revisions with draft, validate, apply, and rollback operations.
+- A Cobra-based CLI with `status` plus `config current`, `config list`, `config draft`, `config validate`, `config apply`, and `config rollback`.
 - A Svelte/Vite frontend shell with a Pi-hole-inspired dashboard layout.
 - A starter SQLite schema for settings, users, tokens, revisions, audit events, and metrics.
 
@@ -79,6 +80,15 @@ Query the status API with the CLI:
 
 ```bash
 go run ./cmd/dnsmanager status
+```
+
+Create and validate a draft config revision:
+
+```bash
+printf 'address=/lab.local/192.168.10.50\n' > /tmp/dnsmanager-draft.conf
+go run ./cmd/dnsmanager config draft --summary "Add lab.local mapping" --file /tmp/dnsmanager-draft.conf
+go run ./cmd/dnsmanager config validate 2
+go run ./cmd/dnsmanager config apply 2
 ```
 
 ### Docker Compose
@@ -120,5 +130,7 @@ The repository has completed its foundation milestone:
 - The Svelte frontend builds successfully.
 - The backend and Cobra CLI have been smoke-tested together.
 - The Compose stack has been built and brought up successfully with the companion `dnsmasq` container reading the shared volume.
+- Draft, validate, apply, and rollback flows now work through both the API and the Cobra CLI.
+- Compose validation now runs `dnsmasq --test` inside the app container and returns real pass/fail output.
 
-The next milestone is the controlled config lifecycle: import, backup, staged rendering, diff, validation, and apply/rollback behavior.
+The next milestone is managed editors and APIs for DNS, DHCP, TFTP, and PXE objects on top of the revision lifecycle that now exists.

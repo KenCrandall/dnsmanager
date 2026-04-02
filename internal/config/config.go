@@ -16,15 +16,18 @@ type Config struct {
 }
 
 type Layout struct {
-	DataDir      string `json:"dataDir"`
-	ConfigDir    string `json:"configDir"`
-	ContentDir   string `json:"contentDir"`
-	UIDistDir    string `json:"uiDistDir"`
-	DBPath       string `json:"dbPath"`
-	ManagedDir   string `json:"managedDir"`
-	ManualDir    string `json:"manualDir"`
-	GeneratedDir string `json:"generatedDir"`
-	BackupsDir   string `json:"backupsDir"`
+	DataDir             string `json:"dataDir"`
+	ConfigDir           string `json:"configDir"`
+	ContentDir          string `json:"contentDir"`
+	UIDistDir           string `json:"uiDistDir"`
+	DBPath              string `json:"dbPath"`
+	ManagedDir          string `json:"managedDir"`
+	ManualDir           string `json:"manualDir"`
+	GeneratedDir        string `json:"generatedDir"`
+	BackupsDir          string `json:"backupsDir"`
+	StagingDir          string `json:"stagingDir"`
+	AppliedDir          string `json:"appliedDir"`
+	ActiveGeneratedFile string `json:"activeGeneratedFile"`
 }
 
 func Load() Config {
@@ -45,15 +48,18 @@ func Load() Config {
 
 func (c Config) Layout() Layout {
 	return Layout{
-		DataDir:      c.DataDir,
-		ConfigDir:    c.ConfigDir,
-		ContentDir:   c.ContentDir,
-		UIDistDir:    c.UIDistDir,
-		DBPath:       c.DBPath,
-		ManagedDir:   filepath.Join(c.ConfigDir, "managed"),
-		ManualDir:    filepath.Join(c.ConfigDir, "manual"),
-		GeneratedDir: filepath.Join(c.ConfigDir, "generated"),
-		BackupsDir:   filepath.Join(c.DataDir, "backups"),
+		DataDir:             c.DataDir,
+		ConfigDir:           c.ConfigDir,
+		ContentDir:          c.ContentDir,
+		UIDistDir:           c.UIDistDir,
+		DBPath:              c.DBPath,
+		ManagedDir:          filepath.Join(c.ConfigDir, "managed"),
+		ManualDir:           filepath.Join(c.ConfigDir, "manual"),
+		GeneratedDir:        filepath.Join(c.ConfigDir, "generated"),
+		BackupsDir:          filepath.Join(c.DataDir, "backups"),
+		StagingDir:          filepath.Join(c.DataDir, "staging"),
+		AppliedDir:          filepath.Join(c.DataDir, "applied"),
+		ActiveGeneratedFile: filepath.Join(c.ConfigDir, "generated", "00-dnsmanager-foundation.conf"),
 	}
 }
 

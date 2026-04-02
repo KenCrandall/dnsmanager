@@ -59,7 +59,7 @@ The web UI will provide a dashboard, staged configuration management, DNS/DHCP/T
 | --- | --- | --- |
 | 1. Repository bootstrap | done | Git repo initialized, README added, living plan established, minimal `.gitignore` added. |
 | 2. Foundation | done | Compose scaffold, shared volumes, backend shell, Svelte shell, SQLite schema, base CLI client, and Compose/runtime verification completed. |
-| 3. Controlled config lifecycle | planned | Import wizard, backups, managed/manual/generated tree, validation, diff, apply, rollback, raw snippet editing. |
+| 3. Controlled config lifecycle | done | SQLite-backed revisions, staged rendering, dnsmasq validation, apply/rollback primitives, CLI/API exposure, and Compose validation verification completed. |
 | 4. Managed editors and APIs | planned | DNS, DHCP, TFTP, PXE/iPXE object model, validation, rendering, REST endpoints. |
 | 5. CLI v1 | planned | Cobra command tree, token config, task commands, CRUD commands, output formatting. |
 | 6. Operations views | planned | Lease manager, live logs, apply status, drift warnings. |
@@ -68,22 +68,21 @@ The web UI will provide a dashboard, staged configuration management, DNS/DHCP/T
 
 ## Current Implementation Focus
 
-The next implementation slice should establish the controlled config lifecycle:
+The next implementation slice should establish the first managed editors and APIs:
 
-- Add a first-run initialization flow that prepares or imports the managed/manual/generated tree.
-- Record staged config revisions in SQLite rather than only exposing filesystem paths.
-- Implement config rendering and placeholder diff generation for managed fragments.
-- Add `dnsmasq --test`-based validation and persist validation results.
-- Introduce explicit apply and rollback primitives for the shared config volume.
+- Introduce structured DNS record models and rendering into managed fragments.
+- Add CRUD endpoints for common local DNS record types on top of the revision lifecycle.
+- Define how managed object changes create or update draft revisions rather than writing files directly.
+- Extend the frontend beyond the dashboard shell into the first real editor surface.
+- Keep CLI commands aligned with the same managed-object APIs and revision workflow.
 
 ## Acceptance Criteria For Next Slice
 
-- The backend can create and persist draft config revisions.
-- The shared config tree can be rendered from application state into a staging area.
-- Validation can run against staged config and report pass/fail details.
-- An apply action can atomically publish staged config into the shared volume.
-- A rollback path exists for at least the most recent applied revision.
-- The CLI and API both expose the current revision and validation/apply state.
+- The backend can store at least one managed DNS object type separately from raw rendered text.
+- Managed DNS changes can be rendered into the generated config fragment via the revision lifecycle.
+- CRUD APIs exist for the first managed DNS editor surface.
+- The frontend can create and review at least one managed DNS change.
+- The CLI can inspect or mutate the same managed DNS objects through the API.
 
 ## Open Questions
 
@@ -91,6 +90,7 @@ The next implementation slice should establish the controlled config lifecycle:
 - What initial token and local-auth bootstrap flow should be used for the first operator account?
 - Which config diff representation will be most useful across both UI and CLI?
 - How much existing dnsmasq config should the first import pass promote versus preserve as manual snippets?
+- Which managed DNS object shape should come first: host overrides only, or a broader common-record model immediately?
 
 ## Deferred Scope
 
@@ -111,6 +111,8 @@ The next implementation slice should establish the controlled config lifecycle:
 | 2026-04-01 | Treat `docs/plan.md` as the canonical living roadmap. |
 | 2026-04-01 | Use a custom Alpine-based companion `dnsmasq` image for the initial Compose scaffold. |
 | 2026-04-01 | Verify the foundation slice with local Go/CLI/frontend builds plus a successful Compose stack startup. |
+| 2026-04-01 | Back the first config lifecycle with SQLite revisions plus filesystem staging instead of direct live-file mutation. |
+| 2026-04-01 | Install `dnsmasq` in the app container so Compose validation can run `dnsmasq --test` directly. |
 
 ## Test Checklist
 
@@ -119,3 +121,6 @@ The next implementation slice should establish the controlled config lifecycle:
 - [x] Foundation scaffold exists and can be executed locally.
 - [x] Companion container/shared-volume integration is verified.
 - [x] API, CLI, and frontend foundation pieces are connected.
+- [x] Draft config revisions can be created and stored in SQLite.
+- [x] Validation, apply, and rollback can be exercised through the API and Cobra CLI.
+- [x] Compose validation returns a real `dnsmasq --test` success result inside the app container.

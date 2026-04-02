@@ -37,10 +37,14 @@ CREATE TABLE IF NOT EXISTS config_revisions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   state TEXT NOT NULL DEFAULT 'draft',
   summary TEXT NOT NULL DEFAULT '',
+  rendered_config TEXT NOT NULL DEFAULT '',
   diff_text TEXT NOT NULL DEFAULT '',
+  validation_status TEXT NOT NULL DEFAULT 'pending',
+  validation_output TEXT NOT NULL DEFAULT '',
   created_by TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  applied_at TEXT
+  applied_at TEXT,
+  source_revision_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS metric_rollups (
@@ -50,4 +54,3 @@ CREATE TABLE IF NOT EXISTS metric_rollups (
   metric_value REAL NOT NULL,
   dimensions_json TEXT NOT NULL DEFAULT '{}'
 );
-

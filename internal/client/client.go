@@ -1,12 +1,16 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"dnsmanager/internal/revision"
 )
 
 type Client struct {
@@ -44,29 +48,133 @@ func New(baseURL, token string) *Client {
 }
 
 func (c *Client) Status(ctx context.Context) (StatusResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1/status", nil)
+	req, err := c.newRequest(ctx, http.MethodGet, "/api/v1/status", nil)
 	if err != nil {
 		return StatusResponse{}, err
-	}
-
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return StatusResponse{}, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return StatusResponse{}, fmt.Errorf("unexpected status %s", resp.Status)
 	}
 
 	var status StatusResponse
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+	if err := c.do(req, &status); err != nil {
 		return StatusResponse{}, err
 	}
 
 	return status, nil
+}
+
+func (c *Client) ListRevisions(ctx context.Context) ([]revision.Revision, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/api/v1/config/revisions", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var payload struct {
+		Revisions []revision.Revision `json:"revisions"`
+	}
+	if err := c.do(req, &payload); err != nil {
+		return nil, err
+	}
+
+	return payload.Revisions, nil
+}
+
+func (c *Client) CurrentRevision(ctx context.Context) (revision.Revision, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/api/v1/config/revisions/current", nil)
+	if err != nil {
+		return revision.Revision{}, err
+	}
+
+	var current revision.Revision
+	if err := c.do(req, &current); err != nil {
+		return revision.Revision{}, err
+	}
+
+	return current, nil
+}
+
+func (c *Client) CreateDraft(ctx context.Context, input revision.CreateInput) (revision.Revision, error) {
+	req, err := c.newRequest(ctx, http.MethodPost, "/api/v1/config/revisions", input)
+	if err != nil {
+		return revision.Revision{}, err
+	}
+
+	var created revision.Revision
+	if err := c.do(req, &created); err != nil {
+		return revision.Revision{}, err
+	}
+
+	return created, nil
+}
+
+func (c *Client) ValidateRevision(ctx context.Context, id int64) (revision.Revision, error) {
+	return c.revisionAction(ctx, id, "validate")
+}
+
+func (c *Client) ApplyRevision(ctx context.Context, id int64) (revision.Revision, error) {
+	return c.revisionAction(ctx, id, "apply")
+}
+
+func (c *Client) RollbackRevision(ctx context.Context, id int64) (revision.Revision, error) {
+	return c.revisionAction(ctx, id, "rollback")
+}
+
+func (c *Client) revisionAction(ctx context.Context, id int64, action string) (revision.Revision, error) {
+	req, err := c.newRequest(ctx, http.MethodPost, fmt.Sprintf("/api/v1/config/revisions/%d/%s", id, action), map[string]any{})
+	if err != nil {
+		return revision.Revision{}, err
+	}
+
+	var updated revision.Revision
+	if err := c.do(req, &updated); err != nil {
+		return revision.Revision{}, err
+	}
+
+	return updated, nil
+}
+
+func (c *Client) newRequest(ctx context.Context, method, path string, payload any) (*http.Request, error) {
+	var body io.Reader
+	if payload != nil {
+		buffer := bytes.NewBuffer(nil)
+		if err := json.NewEncoder(buffer).Encode(payload); err != nil {
+			return nil, err
+		}
+		body = buffer
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+
+	return req, nil
+}
+
+func (c *Client) do(req *http.Request, dest any) error {
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		message := strings.TrimSpace(string(body))
+		if message == "" {
+			message = resp.Status
+		}
+		return fmt.Errorf("request failed: %s", message)
+	}
+
+	if dest == nil {
+		return nil
+	}
+
+	return json.NewDecoder(resp.Body).Decode(dest)
 }

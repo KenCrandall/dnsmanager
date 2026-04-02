@@ -4,17 +4,26 @@
   let loading = true;
   let error = "";
   let status = null;
+  let currentRevision = null;
 
   const trendBars = [42, 68, 56, 88, 73, 64, 92];
 
   onMount(async () => {
     try {
-      const response = await fetch("/api/v1/status");
-      if (!response.ok) {
-        throw new Error(`status request failed: ${response.status}`);
+      const [statusResponse, revisionResponse] = await Promise.all([
+        fetch("/api/v1/status"),
+        fetch("/api/v1/config/revisions/current")
+      ]);
+
+      if (!statusResponse.ok) {
+        throw new Error(`status request failed: ${statusResponse.status}`);
+      }
+      if (!revisionResponse.ok) {
+        throw new Error(`current revision request failed: ${revisionResponse.status}`);
       }
 
-      status = await response.json();
+      status = await statusResponse.json();
+      currentRevision = await revisionResponse.json();
     } catch (err) {
       error = err instanceof Error ? err.message : "unknown error";
     } finally {
@@ -33,18 +42,18 @@
 </script>
 
 <svelte:head>
-  <title>dnsmanager foundation</title>
+  <title>dnsmanager config lifecycle</title>
 </svelte:head>
 
 <main class="shell">
   <section class="hero">
     <div class="hero-copy">
-      <p class="eyebrow">dnsmanager foundation</p>
-      <h1>Control-plane scaffolding for a companion `dnsmasq` container.</h1>
+      <p class="eyebrow">dnsmanager config lifecycle</p>
+      <h1>Staged revision flow for a companion `dnsmasq` container.</h1>
       <p class="lede">
-        This first runnable slice wires the Go backend, Cobra CLI, Svelte shell,
-        and shared-volume Compose model together so later milestones can focus
-        on DNS, DHCP, TFTP, PXE, and observability features.
+        This slice adds persisted draft revisions, staged rendering, validation,
+        apply, and rollback primitives on top of the shared-volume Compose model
+        so the next milestones can build actual DNS, DHCP, TFTP, and PXE editors.
       </p>
     </div>
     <div class="hero-panel">
@@ -82,23 +91,38 @@
 
   <section class="columns">
     <article class="panel">
-      <h2>Planned feature areas</h2>
+      <h2>Lifecycle primitives</h2>
       <ul>
-        <li>Staged config editing with validation, diff, and apply flow</li>
-        <li>DNS and DHCP editors plus lease management</li>
-        <li>TFTP and PXE configuration with future asset lifecycle support</li>
-        <li>Live logs and a Pi-hole-style operational dashboard</li>
+        <li>Draft revisions persisted in SQLite</li>
+        <li>Staging-tree rendering with managed, manual, and generated areas</li>
+        <li>`dnsmasq --test` validation when the binary is available</li>
+        <li>Apply and rollback primitives for the active generated config</li>
       </ul>
     </article>
 
     <article class="panel">
-      <h2>Foundation endpoints</h2>
+      <h2>Current revision</h2>
+      {#if currentRevision}
+        <ul>
+          <li>Revision #{currentRevision.id}: {currentRevision.summary}</li>
+          <li>State: {currentRevision.state}</li>
+          <li>Validation: {currentRevision.validationStatus}</li>
+          <li>Created: {new Date(currentRevision.createdAt).toLocaleString()}</li>
+        </ul>
+        <p><code>{currentRevision.validationOutput}</code></p>
+      {:else}
+        <p>No revision state available yet.</p>
+      {/if}
+    </article>
+
+    <article class="panel">
+      <h2>Lifecycle endpoints</h2>
       <ul>
         <li><code>/healthz</code> for liveness checks</li>
         <li><code>/api/v1/status</code> for runtime and shared-volume paths</li>
-        <li><code>/api/v1/layout</code> for managed/manual/generated directories</li>
+        <li><code>/api/v1/config/revisions</code> for listing and creating drafts</li>
+        <li><code>/api/v1/config/revisions/:id/validate</code> for validation/apply actions</li>
       </ul>
     </article>
   </section>
 </main>
-
