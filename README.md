@@ -49,13 +49,15 @@ Changes will follow a staged apply pipeline:
 
 ## Controlled config lifecycle slice
 
-The repository now includes a verified scaffold plus the first controlled config lifecycle implementation:
+The repository now includes a verified scaffold plus the first controlled config lifecycle and managed DNS editor implementation:
 
 - `compose.yaml` for the `dnsmanager` app container and companion `dnsmasq` container.
 - A Go backend with `healthz`, runtime status, shared-volume bootstrapping, and static UI serving.
 - SQLite-backed config revisions with draft, validate, apply, and rollback operations.
+- A revision-aware managed DNS record layer for initial `A` and `AAAA` records.
 - A Cobra-based CLI with `status` plus `config current`, `config list`, `config draft`, `config validate`, `config apply`, and `config rollback`.
-- A Svelte/Vite frontend shell with a Pi-hole-inspired dashboard layout.
+- A Cobra-based DNS surface with `dns records list`, `add`, `update`, and `delete`.
+- A Svelte/Vite frontend shell with a Pi-hole-inspired dashboard layout and a first managed DNS editor.
 - A starter SQLite schema for settings, users, tokens, revisions, audit events, and metrics.
 
 ## Quick start
@@ -89,6 +91,13 @@ printf 'address=/lab.local/192.168.10.50\n' > /tmp/dnsmanager-draft.conf
 go run ./cmd/dnsmanager config draft --summary "Add lab.local mapping" --file /tmp/dnsmanager-draft.conf
 go run ./cmd/dnsmanager config validate 2
 go run ./cmd/dnsmanager config apply 2
+```
+
+Create a managed DNS record that feeds the draft workflow:
+
+```bash
+go run ./cmd/dnsmanager dns records add --name lab.local --type A --value 192.168.10.50 --summary "Add managed lab record"
+go run ./cmd/dnsmanager dns records list
 ```
 
 ### Docker Compose
@@ -132,5 +141,6 @@ The repository has completed its foundation milestone:
 - The Compose stack has been built and brought up successfully with the companion `dnsmasq` container reading the shared volume.
 - Draft, validate, apply, and rollback flows now work through both the API and the Cobra CLI.
 - Compose validation now runs `dnsmasq --test` inside the app container and returns real pass/fail output.
+- The first managed DNS editor/API layer now supports structured `A` and `AAAA` records, draft workspace rendering, and CLI/API/UI CRUD flows.
 
-The next milestone is managed editors and APIs for DNS, DHCP, TFTP, and PXE objects on top of the revision lifecycle that now exists.
+The next step is to deepen the managed editor layer: expand DNS record support beyond the first `A`/`AAAA` slice or move into DHCP objects on top of the revision lifecycle that now exists.

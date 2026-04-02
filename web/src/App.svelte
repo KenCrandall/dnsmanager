@@ -5,14 +5,23 @@
   let error = "";
   let status = null;
   let currentRevision = null;
+  let dnsWorkspace = null;
+  let dnsForm = {
+    name: "",
+    recordType: "A",
+    value: ""
+  };
+  let dnsSaving = false;
+  let dnsError = "";
 
   const trendBars = [42, 68, 56, 88, 73, 64, 92];
 
   onMount(async () => {
     try {
-      const [statusResponse, revisionResponse] = await Promise.all([
+      const [statusResponse, revisionResponse, dnsResponse] = await Promise.all([
         fetch("/api/v1/status"),
-        fetch("/api/v1/config/revisions/current")
+        fetch("/api/v1/config/revisions/current"),
+        fetch("/api/v1/dns/records")
       ]);
 
       if (!statusResponse.ok) {
@@ -21,15 +30,73 @@
       if (!revisionResponse.ok) {
         throw new Error(`current revision request failed: ${revisionResponse.status}`);
       }
+      if (!dnsResponse.ok) {
+        throw new Error(`dns workspace request failed: ${dnsResponse.status}`);
+      }
 
       status = await statusResponse.json();
       currentRevision = await revisionResponse.json();
+      dnsWorkspace = await dnsResponse.json();
     } catch (err) {
       error = err instanceof Error ? err.message : "unknown error";
     } finally {
       loading = false;
     }
   });
+
+  async function createDNSRecord() {
+    dnsSaving = true;
+    dnsError = "";
+
+    try {
+      const response = await fetch("/api/v1/dns/records", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: dnsForm.name,
+          recordType: dnsForm.recordType,
+          value: dnsForm.value,
+          summary: "Update managed DNS records",
+          createdBy: "web"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      dnsWorkspace = await response.json();
+      currentRevision = dnsWorkspace.revision;
+      dnsForm = { name: "", recordType: "A", value: "" };
+    } catch (err) {
+      dnsError = err instanceof Error ? err.message : "unknown error";
+    } finally {
+      dnsSaving = false;
+    }
+  }
+
+  async function deleteDNSRecord(recordId) {
+    dnsSaving = true;
+    dnsError = "";
+
+    try {
+      const response = await fetch(`/api/v1/dns/records/${recordId}`, {
+        method: "DELETE"
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      dnsWorkspace = await response.json();
+      currentRevision = dnsWorkspace.revision;
+    } catch (err) {
+      dnsError = err instanceof Error ? err.message : "unknown error";
+    } finally {
+      dnsSaving = false;
+    }
+  }
 
   $: cards = status
     ? [
@@ -123,6 +190,75 @@
         <li><code>/api/v1/config/revisions</code> for listing and creating drafts</li>
         <li><code>/api/v1/config/revisions/:id/validate</code> for validation/apply actions</li>
       </ul>
+    </article>
+  </section>
+
+  <section class="editor-grid">
+    <article class="panel editor-panel">
+      <h2>Managed DNS editor</h2>
+      <p class="panel-copy">
+        This first editor surface manages `A` and `AAAA` records as structured
+        objects and writes them into the current draft revision instead of
+        directly mutating live dnsmasq files.
+      </p>
+
+      <div class="form-grid">
+        <label>
+          <span>Name</span>
+          <input bind:value={dnsForm.name} placeholder="lab.local" />
+        </label>
+
+        <label>
+          <span>Type</span>
+          <select bind:value={dnsForm.recordType}>
+            <option value="A">A</option>
+            <option value="AAAA">AAAA</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Value</span>
+          <input bind:value={dnsForm.value} placeholder="192.168.10.50" />
+        </label>
+      </div>
+
+      <button class="primary" disabled={dnsSaving} on:click={createDNSRecord}>
+        {dnsSaving ? "Saving..." : "Add managed DNS record"}
+      </button>
+
+      {#if dnsError}
+        <p class="error-text">{dnsError}</p>
+      {/if}
+    </article>
+
+    <article class="panel editor-panel">
+      <h2>Current managed DNS workspace</h2>
+      {#if dnsWorkspace}
+        <p class="panel-copy">
+          Workspace revision #{dnsWorkspace.revision.id} is currently
+          <strong>{dnsWorkspace.revision.state}</strong>.
+        </p>
+
+        {#if dnsWorkspace.records.length > 0}
+          <div class="record-list">
+            {#each dnsWorkspace.records as record}
+              <div class="record-row">
+                <div>
+                  <p class="record-name">{record.name}</p>
+                  <p class="record-meta">{record.recordType} -> {record.value}</p>
+                </div>
+                <button class="ghost" disabled={dnsSaving} on:click={() => deleteDNSRecord(record.id)}>
+                  Delete
+                </button>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="panel-copy">No managed DNS records in the current workspace yet.</p>
+        {/if}
+      {:else}
+        <p class="panel-copy">Loading managed DNS workspace...</p>
+      {/if}
     </article>
   </section>
 </main>

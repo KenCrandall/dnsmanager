@@ -54,3 +54,15 @@ CREATE TABLE IF NOT EXISTS metric_rollups (
   metric_value REAL NOT NULL,
   dimensions_json TEXT NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE IF NOT EXISTS dns_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  revision_id INTEGER NOT NULL,
+  source_record_id INTEGER,
+  name TEXT NOT NULL,
+  record_type TEXT NOT NULL,
+  value TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (revision_id) REFERENCES config_revisions(id)
+);

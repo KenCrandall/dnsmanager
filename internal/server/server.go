@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"dnsmanager/internal/config"
+	"dnsmanager/internal/dns"
 	"dnsmanager/internal/revision"
 )
 
@@ -22,6 +23,7 @@ type Server struct {
 	layout    config.Layout
 	startedAt time.Time
 	revisions *revision.Service
+	dns       *dns.Service
 }
 
 type statusResponse struct {
@@ -43,11 +45,17 @@ func New(cfg config.Config) (*Server, error) {
 		return nil, err
 	}
 
+	dnsService, err := dns.New(layout, revisions)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
 		cfg:       cfg,
 		layout:    layout,
 		startedAt: time.Now().UTC(),
 		revisions: revisions,
+		dns:       dnsService,
 	}, nil
 }
 
@@ -60,6 +68,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/v1/config/revisions", s.handleRevisions)
 	mux.HandleFunc("/api/v1/config/revisions/current", s.handleCurrentRevision)
 	mux.HandleFunc("/api/v1/config/revisions/", s.handleRevisionAction)
+	mux.HandleFunc("/api/v1/dns/records", s.handleDNSRecords)
+	mux.HandleFunc("/api/v1/dns/records/", s.handleDNSRecordAction)
 	mux.Handle("/", s.uiHandler())
 
 	return loggingMiddleware(mux)
@@ -252,6 +262,72 @@ func (s *Server) handleRevisionAction(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, revisionState)
 }
 
+func (s *Server) handleDNSRecords(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		workspace, err := s.dns.Workspace(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, workspace)
+	case http.MethodPost:
+		var input dns.UpsertInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			http.Error(w, "invalid json body", http.StatusBadRequest)
+			return
+		}
+		workspace, err := s.dns.Upsert(r.Context(), input)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusCreated, workspace)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleDNSRecordAction(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/dns/records/")
+	path = strings.Trim(path, "/")
+	if path == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	recordID, err := strconv.ParseInt(path, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid record id", http.StatusBadRequest)
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var input dns.UpsertInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			http.Error(w, "invalid json body", http.StatusBadRequest)
+			return
+		}
+		input.ID = recordID
+		workspace, err := s.dns.Upsert(r.Context(), input)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, workspace)
+	case http.MethodDelete:
+		workspace, err := s.dns.Delete(r.Context(), recordID, "Delete managed DNS record", "api")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, http.StatusOK, workspace)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 func fallbackHTML() string {
 	return `<!DOCTYPE html>
 <html lang="en">
@@ -294,9 +370,9 @@ func fallbackHTML() string {
   </head>
   <body>
     <main>
-      <h1>dnsmanager foundation is running</h1>
-      <p>The backend is healthy, the shared volume layout has been created, and the Svelte UI can be built into <code>web/dist</code> when frontend dependencies are installed.</p>
-      <p>Check <a href="/api/v1/status">/api/v1/status</a> for the current runtime layout.</p>
+      <h1>dnsmanager is running</h1>
+      <p>The backend is healthy, the revision workflow is active, and managed DNS records can now be edited through the API and CLI.</p>
+      <p>Check <a href="/api/v1/status">/api/v1/status</a> for runtime details or <a href="/api/v1/dns/records">/api/v1/dns/records</a> for the current managed DNS workspace.</p>
     </main>
   </body>
 </html>`

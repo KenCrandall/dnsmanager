@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"dnsmanager/internal/dns"
 	"dnsmanager/internal/revision"
 )
 
@@ -115,6 +116,62 @@ func (c *Client) ApplyRevision(ctx context.Context, id int64) (revision.Revision
 
 func (c *Client) RollbackRevision(ctx context.Context, id int64) (revision.Revision, error) {
 	return c.revisionAction(ctx, id, "rollback")
+}
+
+func (c *Client) DNSWorkspace(ctx context.Context) (dns.Workspace, error) {
+	req, err := c.newRequest(ctx, http.MethodGet, "/api/v1/dns/records", nil)
+	if err != nil {
+		return dns.Workspace{}, err
+	}
+
+	var workspace dns.Workspace
+	if err := c.do(req, &workspace); err != nil {
+		return dns.Workspace{}, err
+	}
+
+	return workspace, nil
+}
+
+func (c *Client) CreateDNSRecord(ctx context.Context, input dns.UpsertInput) (dns.Workspace, error) {
+	req, err := c.newRequest(ctx, http.MethodPost, "/api/v1/dns/records", input)
+	if err != nil {
+		return dns.Workspace{}, err
+	}
+
+	var workspace dns.Workspace
+	if err := c.do(req, &workspace); err != nil {
+		return dns.Workspace{}, err
+	}
+
+	return workspace, nil
+}
+
+func (c *Client) UpdateDNSRecord(ctx context.Context, input dns.UpsertInput) (dns.Workspace, error) {
+	req, err := c.newRequest(ctx, http.MethodPut, fmt.Sprintf("/api/v1/dns/records/%d", input.ID), input)
+	if err != nil {
+		return dns.Workspace{}, err
+	}
+
+	var workspace dns.Workspace
+	if err := c.do(req, &workspace); err != nil {
+		return dns.Workspace{}, err
+	}
+
+	return workspace, nil
+}
+
+func (c *Client) DeleteDNSRecord(ctx context.Context, id int64) (dns.Workspace, error) {
+	req, err := c.newRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/v1/dns/records/%d", id), nil)
+	if err != nil {
+		return dns.Workspace{}, err
+	}
+
+	var workspace dns.Workspace
+	if err := c.do(req, &workspace); err != nil {
+		return dns.Workspace{}, err
+	}
+
+	return workspace, nil
 }
 
 func (c *Client) revisionAction(ctx context.Context, id int64, action string) (revision.Revision, error) {

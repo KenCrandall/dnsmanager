@@ -118,6 +118,32 @@ func (s *Service) Current(ctx context.Context) (Revision, error) {
 	return scanRevision(row)
 }
 
+func (s *Service) Applied(ctx context.Context) (Revision, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, state, summary, rendered_config, diff_text, validation_status,
+		       validation_output, created_by, created_at, applied_at, source_revision_id
+		FROM config_revisions
+		WHERE state = 'applied'
+		ORDER BY id DESC
+		LIMIT 1
+	`)
+
+	return scanRevision(row)
+}
+
+func (s *Service) LatestDraft(ctx context.Context) (Revision, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT id, state, summary, rendered_config, diff_text, validation_status,
+		       validation_output, created_by, created_at, applied_at, source_revision_id
+		FROM config_revisions
+		WHERE state IN ('draft', 'validated')
+		ORDER BY id DESC
+		LIMIT 1
+	`)
+
+	return scanRevision(row)
+}
+
 func (s *Service) Get(ctx context.Context, id int64) (Revision, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, state, summary, rendered_config, diff_text, validation_status,
@@ -130,7 +156,7 @@ func (s *Service) Get(ctx context.Context, id int64) (Revision, error) {
 }
 
 func (s *Service) CreateDraft(ctx context.Context, input CreateInput) (Revision, error) {
-	current, err := s.Current(ctx)
+	current, err := s.Applied(ctx)
 	if err != nil {
 		return Revision{}, err
 	}
@@ -170,6 +196,56 @@ func (s *Service) CreateDraft(ctx context.Context, input CreateInput) (Revision,
 	}
 
 	id, err := result.LastInsertId()
+	if err != nil {
+		return Revision{}, err
+	}
+
+	return s.Get(ctx, id)
+}
+
+func (s *Service) UpdateDraft(ctx context.Context, id int64, input CreateInput) (Revision, error) {
+	revision, err := s.Get(ctx, id)
+	if err != nil {
+		return Revision{}, err
+	}
+
+	if revision.State == "applied" || revision.State == "superseded" {
+		return Revision{}, errors.New("only draft revisions can be updated")
+	}
+
+	applied, err := s.Applied(ctx)
+	if err != nil {
+		return Revision{}, err
+	}
+
+	if strings.TrimSpace(input.RenderedConfig) == "" {
+		return Revision{}, errors.New("renderedConfig must not be empty")
+	}
+
+	summary := strings.TrimSpace(input.Summary)
+	if summary == "" {
+		summary = revision.Summary
+	}
+
+	createdBy := strings.TrimSpace(input.CreatedBy)
+	if createdBy == "" {
+		createdBy = revision.CreatedBy
+	}
+	if createdBy == "" {
+		createdBy = "cli"
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+		UPDATE config_revisions
+		SET state = 'draft',
+		    summary = ?,
+		    rendered_config = ?,
+		    diff_text = ?,
+		    validation_status = 'pending',
+		    validation_output = 'Validation has not been run.',
+		    created_by = ?
+		WHERE id = ?
+	`, summary, input.RenderedConfig, buildDiff(applied.RenderedConfig, input.RenderedConfig), createdBy, id)
 	if err != nil {
 		return Revision{}, err
 	}

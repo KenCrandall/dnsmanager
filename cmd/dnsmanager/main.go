@@ -13,6 +13,7 @@ import (
 
 	"dnsmanager/internal/cli"
 	"dnsmanager/internal/client"
+	"dnsmanager/internal/dns"
 	"dnsmanager/internal/revision"
 
 	"github.com/spf13/cobra"
@@ -43,6 +44,7 @@ func run() int {
 	rootCmd.AddCommand(versionCommand())
 	rootCmd.AddCommand(statusCommand(&baseURL, &token, &output))
 	rootCmd.AddCommand(configCommand(&baseURL, &token, &output))
+	rootCmd.AddCommand(dnsCommand(&baseURL, &token, &output))
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -111,6 +113,176 @@ func configCommand(baseURL, token, output *string) *cobra.Command {
 	cmd.AddCommand(configRollbackCommand(baseURL, token, output))
 
 	return cmd
+}
+
+func dnsCommand(baseURL, token, output *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "dns",
+		Short: "Manage structured DNS records",
+	}
+
+	cmd.AddCommand(dnsRecordsCommand(baseURL, token, output))
+	return cmd
+}
+
+func dnsRecordsCommand(baseURL, token, output *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "records",
+		Short: "Manage managed DNS records",
+	}
+
+	cmd.AddCommand(dnsRecordsListCommand(baseURL, token, output))
+	cmd.AddCommand(dnsRecordsAddCommand(baseURL, token, output))
+	cmd.AddCommand(dnsRecordsUpdateCommand(baseURL, token, output))
+	cmd.AddCommand(dnsRecordsDeleteCommand(baseURL, token, output))
+	return cmd
+}
+
+func dnsRecordsListCommand(baseURL, token, output *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List managed DNS records for the current workspace revision",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
+			defer cancel()
+
+			api := client.New(*baseURL, *token)
+			workspace, err := api.DNSWorkspace(ctx)
+			if err != nil {
+				return err
+			}
+
+			if *output == "json" {
+				return writeJSON(cmd.OutOrStdout(), workspace)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Workspace revision: #%d (%s)\n", workspace.Revision.ID, workspace.Revision.State)
+			if len(workspace.Records) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "No managed DNS records.")
+				return nil
+			}
+			for _, record := range workspace.Records {
+				fmt.Fprintf(cmd.OutOrStdout(), "#%d\t%s\t%s\t%s\n", record.ID, record.RecordType, record.Name, record.Value)
+			}
+			return nil
+		},
+	}
+}
+
+func dnsRecordsAddCommand(baseURL, token, output *string) *cobra.Command {
+	var (
+		name       string
+		recordType string
+		value      string
+		summary    string
+		createdBy  string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "add",
+		Short: "Create a managed DNS record and update the current draft workspace",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
+			defer cancel()
+
+			api := client.New(*baseURL, *token)
+			workspace, err := api.CreateDNSRecord(ctx, dns.UpsertInput{
+				Name:       name,
+				RecordType: recordType,
+				Value:      value,
+				Summary:    summary,
+				CreatedBy:  createdBy,
+			})
+			if err != nil {
+				return err
+			}
+
+			return printDNSWorkspace(cmd.OutOrStdout(), *output, workspace)
+		},
+	}
+
+	cmd.Flags().StringVar(&name, "name", "", "record name, for example lab.local")
+	cmd.Flags().StringVar(&recordType, "type", "A", "record type: A or AAAA")
+	cmd.Flags().StringVar(&value, "value", "", "record value, for example 192.168.10.50")
+	cmd.Flags().StringVar(&summary, "summary", "Update managed DNS records", "summary recorded on the draft revision")
+	cmd.Flags().StringVar(&createdBy, "created-by", "cli", "actor label recorded on the draft revision")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("value")
+	return cmd
+}
+
+func dnsRecordsUpdateCommand(baseURL, token, output *string) *cobra.Command {
+	var (
+		name       string
+		recordType string
+		value      string
+		summary    string
+		createdBy  string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "update <record-id>",
+		Short: "Update a managed DNS record in the current draft workspace",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			recordID, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return errors.New("record id must be an integer")
+			}
+
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
+			defer cancel()
+
+			api := client.New(*baseURL, *token)
+			workspace, err := api.UpdateDNSRecord(ctx, dns.UpsertInput{
+				ID:         recordID,
+				Name:       name,
+				RecordType: recordType,
+				Value:      value,
+				Summary:    summary,
+				CreatedBy:  createdBy,
+			})
+			if err != nil {
+				return err
+			}
+
+			return printDNSWorkspace(cmd.OutOrStdout(), *output, workspace)
+		},
+	}
+
+	cmd.Flags().StringVar(&name, "name", "", "record name, for example lab.local")
+	cmd.Flags().StringVar(&recordType, "type", "A", "record type: A or AAAA")
+	cmd.Flags().StringVar(&value, "value", "", "record value, for example 192.168.10.50")
+	cmd.Flags().StringVar(&summary, "summary", "Update managed DNS records", "summary recorded on the draft revision")
+	cmd.Flags().StringVar(&createdBy, "created-by", "cli", "actor label recorded on the draft revision")
+	_ = cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("value")
+	return cmd
+}
+
+func dnsRecordsDeleteCommand(baseURL, token, output *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <record-id>",
+		Short: "Delete a managed DNS record from the current draft workspace",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			recordID, err := strconv.ParseInt(args[0], 10, 64)
+			if err != nil {
+				return errors.New("record id must be an integer")
+			}
+
+			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Second)
+			defer cancel()
+
+			api := client.New(*baseURL, *token)
+			workspace, err := api.DeleteDNSRecord(ctx, recordID)
+			if err != nil {
+				return err
+			}
+
+			return printDNSWorkspace(cmd.OutOrStdout(), *output, workspace)
+		},
+	}
 }
 
 func configCurrentCommand(baseURL, token, output *string) *cobra.Command {
@@ -266,6 +438,21 @@ func printRevision(w io.Writer, output string, item revision.Revision) error {
 	}
 	fmt.Fprintf(w, "Diff:\n%s\n", strings.TrimSpace(item.DiffText))
 	fmt.Fprintf(w, "Validation output:\n%s\n", strings.TrimSpace(item.ValidationOutput))
+	return nil
+}
+
+func printDNSWorkspace(w io.Writer, output string, workspace dns.Workspace) error {
+	if output == "json" {
+		return writeJSON(w, workspace)
+	}
+
+	fmt.Fprintf(w, "Workspace revision: %d\n", workspace.Revision.ID)
+	fmt.Fprintf(w, "Revision state: %s\n", workspace.Revision.State)
+	fmt.Fprintf(w, "Revision summary: %s\n", workspace.Revision.Summary)
+	fmt.Fprintf(w, "Managed DNS records: %d\n", len(workspace.Records))
+	for _, record := range workspace.Records {
+		fmt.Fprintf(w, "- #%d %s %s %s\n", record.ID, record.RecordType, record.Name, record.Value)
+	}
 	return nil
 }
 
