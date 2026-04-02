@@ -23,6 +23,7 @@ node_modules/
 .pnpm-store/
 .svelte-kit/
 build/
+web/dist/
 
 # SQLite and local runtime state
 *.db
@@ -30,6 +31,7 @@ build/
 *.db-wal
 *.sqlite
 *.sqlite3
+runtime/
 
 # Docker/runtime artifacts
 tmp/
