@@ -60,7 +60,7 @@ The web UI will provide a dashboard, staged configuration management, DNS/DHCP/T
 | 1. Repository bootstrap | done | Git repo initialized, README added, living plan established, minimal `.gitignore` added. |
 | 2. Foundation | done | Compose scaffold, shared volumes, backend shell, Svelte shell, SQLite schema, base CLI client, and Compose/runtime verification completed. |
 | 3. Controlled config lifecycle | done | SQLite-backed revisions, staged rendering, dnsmasq validation, apply/rollback primitives, CLI/API exposure, and Compose validation verification completed. |
-| 4. Managed editors and APIs | in progress | First managed DNS editor/API slice is implemented for `A` and `AAAA` records; DHCP, TFTP, PXE, and broader DNS support remain. |
+| 4. Managed editors and APIs | in progress | Managed DNS editor/API now covers common local records through `SRV`; DHCP, TFTP, and PXE structured editors remain. |
 | 5. CLI v1 | planned | Cobra command tree, token config, task commands, CRUD commands, output formatting. |
 | 6. Operations views | planned | Lease manager, live logs, apply status, drift warnings. |
 | 7. Dashboard and analytics | planned | Query-log ingestion, 24h roll-ups, Pi-hole-style graphs, CLI dashboard summary. |
@@ -68,9 +68,9 @@ The web UI will provide a dashboard, staged configuration management, DNS/DHCP/T
 
 ## Current Implementation Focus
 
-The next implementation slice should build on the first managed DNS editor:
+The next implementation slice should build on the managed DNS editor:
 
-- Decide whether to broaden DNS support to `CNAME`, `TXT`, `PTR`, and `SRV`, or start the DHCP object model next.
+- Decide whether to deepen DNS editing UX or start the DHCP object model next.
 - Preserve the revision-bound object model so structured edits continue to flow through draft, validate, apply, and rollback.
 - Expand the web editor from basic add/delete into richer review and change management actions.
 - Keep CLI commands aligned with the same structured-object APIs instead of adding direct file mutation paths.
@@ -79,7 +79,7 @@ The next implementation slice should build on the first managed DNS editor:
 
 - The backend can store at least one managed DNS object type separately from raw rendered text.
 - Managed DNS changes can be rendered into the generated config fragment via the revision lifecycle.
-- CRUD APIs exist for the first managed DNS editor surface.
+- CRUD APIs exist for the managed DNS editor surface.
 - The frontend can create and review at least one managed DNS change.
 - The CLI can inspect or mutate the same managed DNS objects through the API.
 
@@ -89,7 +89,7 @@ The next implementation slice should build on the first managed DNS editor:
 - What initial token and local-auth bootstrap flow should be used for the first operator account?
 - Which config diff representation will be most useful across both UI and CLI?
 - How much existing dnsmasq config should the first import pass promote versus preserve as manual snippets?
-- Which managed DNS object family should come next after the initial `A`/`AAAA` slice?
+- Which managed DNS object family or workflow should come next after the current common-record slice?
 - Should DHCP be the next structured editor once the first DNS surface is stable?
 
 ## Deferred Scope
@@ -115,6 +115,7 @@ The next implementation slice should build on the first managed DNS editor:
 | 2026-04-01 | Install `dnsmasq` in the app container so Compose validation can run `dnsmasq --test` directly. |
 | 2026-04-01 | Model managed DNS objects per revision so structured record edits participate in draft/apply/rollback cleanly. |
 | 2026-04-01 | Start the managed DNS surface with `A` and `AAAA` records before broadening to additional record families. |
+| 2026-04-01 | Expand the first managed DNS slice to cover `CNAME`, `TXT`, `PTR`, and `SRV` while keeping the same revision-aware object model. |
 
 ## Test Checklist
 
@@ -127,4 +128,4 @@ The next implementation slice should build on the first managed DNS editor:
 - [x] Validation, apply, and rollback can be exercised through the API and Cobra CLI.
 - [x] Compose validation returns a real `dnsmasq --test` success result inside the app container.
 - [x] Structured managed DNS records can be stored per revision and rendered into the generated config.
-- [x] CLI, API, and web editor flows can create and review the first managed DNS records.
+- [x] CLI, API, and web editor flows can create and review managed DNS records.

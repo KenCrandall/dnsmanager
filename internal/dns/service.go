@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -329,7 +330,8 @@ func renderRecords(records []Record) string {
 	}
 
 	for _, record := range records {
-		builder.WriteString(fmt.Sprintf("host-record=%s,%s\n", record.Name, record.Value))
+		builder.WriteString(renderRecord(record))
+		builder.WriteString("\n")
 	}
 
 	return builder.String()
@@ -342,19 +344,35 @@ func validateRecord(name, recordType, value string) error {
 	if strings.Contains(name, " ") {
 		return errors.New("name must not contain spaces")
 	}
-	if recordType != "A" && recordType != "AAAA" {
-		return errors.New("recordType must be A or AAAA for the first managed DNS slice")
-	}
-
-	ip := net.ParseIP(value)
-	if ip == nil {
-		return errors.New("value must be a valid IP address")
-	}
-	if recordType == "A" && ip.To4() == nil {
-		return errors.New("A records require an IPv4 address")
-	}
-	if recordType == "AAAA" && (ip.To4() != nil || !strings.Contains(value, ":")) {
-		return errors.New("AAAA records require an IPv6 address")
+	switch recordType {
+	case "A":
+		ip := net.ParseIP(value)
+		if ip == nil || ip.To4() == nil {
+			return errors.New("A records require a valid IPv4 address")
+		}
+	case "AAAA":
+		ip := net.ParseIP(value)
+		if ip == nil || ip.To4() != nil || !strings.Contains(value, ":") {
+			return errors.New("AAAA records require a valid IPv6 address")
+		}
+	case "CNAME":
+		if normalizeName(value) == "" {
+			return errors.New("CNAME records require a target hostname")
+		}
+	case "TXT":
+		if value == "" {
+			return errors.New("TXT records require text content")
+		}
+	case "PTR":
+		if value == "" {
+			return errors.New("PTR records require a target hostname")
+		}
+	case "SRV":
+		if err := validateSRVValue(value); err != nil {
+			return err
+		}
+	default:
+		return errors.New("recordType must be one of A, AAAA, CNAME, TXT, PTR, or SRV")
 	}
 
 	return nil
@@ -388,4 +406,63 @@ func defaultCreatedBy(createdBy string) string {
 		return createdBy
 	}
 	return "cli"
+}
+
+func renderRecord(record Record) string {
+	switch record.RecordType {
+	case "A", "AAAA":
+		return fmt.Sprintf("host-record=%s,%s", record.Name, record.Value)
+	case "CNAME":
+		return fmt.Sprintf("cname=%s,%s", record.Name, normalizeName(record.Value))
+	case "TXT":
+		return fmt.Sprintf(`txt-record=%s,"%s"`, record.Name, escapeTXT(record.Value))
+	case "PTR":
+		return fmt.Sprintf("ptr-record=%s,%s", record.Name, normalizeName(record.Value))
+	case "SRV":
+		target, port, priority, weight := parseSRVValue(record.Value)
+		return fmt.Sprintf("srv-host=%s,%s,%s,%s,%s", record.Name, normalizeName(target), port, priority, weight)
+	default:
+		return fmt.Sprintf("# unsupported-record=%s,%s,%s", record.RecordType, record.Name, record.Value)
+	}
+}
+
+func validateSRVValue(value string) error {
+	target, port, priority, weight := parseSRVValue(value)
+	if normalizeName(target) == "" {
+		return errors.New("SRV records require a target hostname followed by port, priority, and weight")
+	}
+
+	for fieldName, raw := range map[string]string{
+		"port":     port,
+		"priority": priority,
+		"weight":   weight,
+	} {
+		if raw == "" {
+			return fmt.Errorf("SRV records require %s", fieldName)
+		}
+		if _, err := strconv.Atoi(raw); err != nil {
+			return fmt.Errorf("SRV %s must be an integer", fieldName)
+		}
+	}
+
+	return nil
+}
+
+func parseSRVValue(value string) (target, port, priority, weight string) {
+	parts := strings.Split(value, ",")
+	for len(parts) < 4 {
+		parts = append(parts, "")
+	}
+
+	target = strings.TrimSpace(parts[0])
+	port = strings.TrimSpace(parts[1])
+	priority = strings.TrimSpace(parts[2])
+	weight = strings.TrimSpace(parts[3])
+	return target, port, priority, weight
+}
+
+func escapeTXT(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return value
 }

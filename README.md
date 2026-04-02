@@ -54,7 +54,7 @@ The repository now includes a verified scaffold plus the first controlled config
 - `compose.yaml` for the `dnsmanager` app container and companion `dnsmasq` container.
 - A Go backend with `healthz`, runtime status, shared-volume bootstrapping, and static UI serving.
 - SQLite-backed config revisions with draft, validate, apply, and rollback operations.
-- A revision-aware managed DNS record layer for initial `A` and `AAAA` records.
+- A revision-aware managed DNS record layer for common local DNS records including `A`, `AAAA`, `CNAME`, `TXT`, `PTR`, and `SRV`.
 - A Cobra-based CLI with `status` plus `config current`, `config list`, `config draft`, `config validate`, `config apply`, and `config rollback`.
 - A Cobra-based DNS surface with `dns records list`, `add`, `update`, and `delete`.
 - A Svelte/Vite frontend shell with a Pi-hole-inspired dashboard layout and a first managed DNS editor.
@@ -141,6 +141,6 @@ The repository has completed its foundation milestone:
 - The Compose stack has been built and brought up successfully with the companion `dnsmasq` container reading the shared volume.
 - Draft, validate, apply, and rollback flows now work through both the API and the Cobra CLI.
 - Compose validation now runs `dnsmasq --test` inside the app container and returns real pass/fail output.
-- The first managed DNS editor/API layer now supports structured `A` and `AAAA` records, draft workspace rendering, and CLI/API/UI CRUD flows.
+- The managed DNS editor/API layer now supports structured `A`, `AAAA`, `CNAME`, `TXT`, `PTR`, and `SRV` records, draft workspace rendering, and CLI/API/UI CRUD flows.
 
-The next step is to deepen the managed editor layer: expand DNS record support beyond the first `A`/`AAAA` slice or move into DHCP objects on top of the revision lifecycle that now exists.
+The next step is to deepen the managed editor layer further or move into DHCP objects on top of the revision lifecycle that now exists.

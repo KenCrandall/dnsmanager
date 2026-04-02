@@ -77,6 +77,44 @@
     }
   }
 
+  function dnsValuePlaceholder(recordType) {
+    switch (recordType) {
+      case "A":
+        return "192.168.10.50";
+      case "AAAA":
+        return "2001:db8::10";
+      case "CNAME":
+        return "target.example.local";
+      case "TXT":
+        return "text payload";
+      case "PTR":
+        return "host.example.local";
+      case "SRV":
+        return "target.example.local,5060,10,5";
+      default:
+        return "value";
+    }
+  }
+
+  function dnsValueHelp(recordType) {
+    switch (recordType) {
+      case "A":
+        return "IPv4 address";
+      case "AAAA":
+        return "IPv6 address";
+      case "CNAME":
+        return "Target hostname";
+      case "TXT":
+        return "Single TXT string";
+      case "PTR":
+        return "Target hostname for the reverse lookup";
+      case "SRV":
+        return "Format: target,port,priority,weight";
+      default:
+        return "";
+    }
+  }
+
   async function deleteDNSRecord(recordId) {
     dnsSaving = true;
     dnsError = "";
@@ -197,9 +235,9 @@
     <article class="panel editor-panel">
       <h2>Managed DNS editor</h2>
       <p class="panel-copy">
-        This first editor surface manages `A` and `AAAA` records as structured
-        objects and writes them into the current draft revision instead of
-        directly mutating live dnsmasq files.
+        This editor now manages common local DNS records as structured objects
+        and writes them into the current draft revision instead of directly
+        mutating live dnsmasq files.
       </p>
 
       <div class="form-grid">
@@ -213,12 +251,17 @@
           <select bind:value={dnsForm.recordType}>
             <option value="A">A</option>
             <option value="AAAA">AAAA</option>
+            <option value="CNAME">CNAME</option>
+            <option value="TXT">TXT</option>
+            <option value="PTR">PTR</option>
+            <option value="SRV">SRV</option>
           </select>
         </label>
 
         <label>
           <span>Value</span>
-          <input bind:value={dnsForm.value} placeholder="192.168.10.50" />
+          <input bind:value={dnsForm.value} placeholder={dnsValuePlaceholder(dnsForm.recordType)} />
+          <small>{dnsValueHelp(dnsForm.recordType)}</small>
         </label>
       </div>
 

@@ -129,6 +129,8 @@ func dnsRecordsCommand(baseURL, token, output *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "records",
 		Short: "Manage managed DNS records",
+		Long: "Manage revision-aware DNS records. Supported types are A, AAAA, CNAME, TXT, PTR, and SRV.\n" +
+			"SRV values use the format target,port,priority,weight.",
 	}
 
 	cmd.AddCommand(dnsRecordsListCommand(baseURL, token, output))

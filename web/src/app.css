@@ -208,6 +208,11 @@ code {
   text-transform: uppercase;
 }
 
+.form-grid small {
+  color: #687d70;
+  line-height: 1.4;
+}
+
 .form-grid input,
 .form-grid select {
   width: 100%;
